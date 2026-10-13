@@ -1,2 +1,7 @@
-*.pem
+venv/
+*.pyc
+__pycache__/
 .env
+*.pem
+instance/
+*.db
