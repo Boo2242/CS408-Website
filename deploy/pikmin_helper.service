@@ -1,33 +1,21 @@
 [Unit]
 Description=Pikmin Bloom Helper Flask Application
-After=network.target
+After=network.target network-online.target postgresql.service
 
 [Service]
 Type=simple
-
-# Run as the unprivileged user we created in setup-ec2.sh
-User=pikmin
-Group=pikmin
-
+User=ubuntu
 WorkingDirectory=/opt/pikmin-helper
-
-# Use the virtual environment's gunicorn binary to run Flask
+Environment="DATABASE_URL=postgresql://pikmin_user:pikmin_password123@localhost/pikmin_db"
+Environment="SECRET_KEY=79367d088dbba4c22a28aaa4276f3e95b8fc6203f0b598e3984aac144970db62"
+Environment="FLASK_ENV=production"
 ExecStart=/opt/pikmin-helper/venv/bin/gunicorn --workers 3 --bind 127.0.0.1:8000 app:app
-
-Environment=FLASK_ENV=production
 
 Restart=always
 RestartSec=5
 
 StandardOutput=journal
 StandardError=journal
-
-# Hardening: restrict writing to the data folder
-NoNewPrivileges=true
-PrivateTmp=true
-ProtectSystem=strict
-ProtectHome=true
-ReadWritePaths=/opt/pikmin-helper/data
 
 [Install]
 WantedBy=multi-user.target

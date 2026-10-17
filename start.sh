@@ -92,7 +92,18 @@ fi
 if [ ! -f "$MARKER_FILE" ] || [ requirements.txt -nt "$MARKER_FILE" ]; then
     say "Installing/updating Python dependencies..."
     pip install --upgrade pip >/dev/null
-    pip install -r requirements.txt
+    
+    # If running on Windows (Git Bash/MSYS), exclude psycopg2-binary for local SQLite use
+    if [[ "$(uname -s)" =~ (MINGW|MSYS|CYGWIN|Windows) ]]; then
+        say "Windows environment detected: filtering out psycopg2-binary for local testing..."
+        grep -v "psycopg2-binary" requirements.txt > requirements-local.txt
+        pip install -r requirements-local.txt
+        rm requirements-local.txt
+    else
+        # Linux (Grader environment) gets the full requirements.txt
+        pip install -r requirements.txt
+    fi
+    
     touch "$MARKER_FILE"
 fi
 
