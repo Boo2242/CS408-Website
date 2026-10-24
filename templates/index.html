@@ -25,6 +25,7 @@
             <p>Welcome back, <strong>{{ current_user.username }}</strong>!</p>
             <a href="{{ url_for('account') }}" class="btn">Go to My Account</a>
             <a href="{{ url_for('logout') }}" class="btn" style="background-color: #e74c3c;">Log Out</a>
+            <a href="{{ url_for('tracker') }}" class="btn" style="background-color: #0c71cf;">Tracker</a>
         {% else %}
             <p>Please log in or register to access your account features.</p>
             <a href="{{ url_for('login') }}" class="btn">Log In</a>

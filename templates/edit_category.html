@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Edit Category - Pikmin Decor Tracker</title>
+</head>
+<body>
+    <h1>Edit Custom Category: {{ category.name }}</h1>
+    
+    <form action="{{ url_for('edit_category', cat_id=category.id) }}" method="POST">
+        <div>
+            <label>Category Name:</label><br>
+            <input type="text" name="name" value="{{ category.name }}" required>
+        </div>
+        <br>
+        <div>
+            <label>Allowed Pikmin Items (comma-separated keys, e.g., red_custom,blue_custom):</label><br>
+            <textarea name="allowed_pikmin" rows="3" cols="50" required>{{ category.allowed_pikmin }}</textarea>
+        </div>
+        <br>
+        <div>
+            <label>Custom Image Links (Format: <code>item_key:https://url.com/image.png,item_key2:https://url.com/image2.png</code>):</label><br>
+            <textarea name="custom_images" rows="4" cols="50">{{ category.custom_images or '' }}</textarea>
+        </div>
+        <br>
+        <button type="submit">Save Changes</button>
+        <a href="{{ url_for('tracker') }}">Cancel</a>
+    </form>
+</body>
+</html>
