@@ -4,7 +4,7 @@ WIKI_DECOR_URLS = {
     "red_chef": "https://pikmin.wiki.gallery/images/thumb/a/a7/Decor_Red_Chef_Hat.png/63px-Decor_Red_Chef_Hat.png",
     "red_chef_rare": "https://pikmin.wiki.gallery/images/thumb/5/5e/Decor_Red_Chef_Hat_%28Rare%29.png/63px-Decor_Red_Chef_Hat_%28Rare%29.png",
     "yellow_chef": "https://pikmin.wiki.gallery/images/thumb/3/33/Decor_Yellow_Chef_Hat.png/51px-Decor_Yellow_Chef_Hat.png",
-    "yellow_chef_rare": "https://pikmin.wiki.gallery/images/thumb/3/37/Decor_Blue_Chef_Hat_%28Rare%29.png/61px-Decor_Blue_Chef_Hat_%28Rare%29.png",
+    "yellow_chef_rare": "https://pikmin.wiki.gallery/images/thumb/4/41/Decor_Yellow_Chef_Hat_%28Rare%29.png/51px-Decor_Yellow_Chef_Hat_%28Rare%29.png",
     "blue_chef": "https://pikmin.wiki.gallery/images/thumb/e/ef/Decor_Blue_Chef_Hat.png/61px-Decor_Blue_Chef_Hat.png",
     "blue_chef_rare": "https://pikmin.wiki.gallery/images/thumb/3/37/Decor_Blue_Chef_Hat_%28Rare%29.png/61px-Decor_Blue_Chef_Hat_%28Rare%29.png",
     "purple_chef": "https://pikmin.wiki.gallery/images/thumb/6/66/Decor_Purple_Chef_Hat.png/51px-Decor_Purple_Chef_Hat.png",
