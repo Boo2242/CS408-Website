@@ -149,15 +149,22 @@
 </head>
 <body>
     <div class="container">
-        <!-- Top Navigation Bar -->
-        <div class="header-bar">
-            <h2>🌸 Pikmin Decor Tracker</h2>
-            <div>
-                <span>Welcome, <strong>{{ current_user.username }}</strong>!</span> | 
-                <a href="{{ url_for('account') }}">Account</a> | 
-                <a href="{{ url_for('logout') }}">Logout</a>
+    <!-- Top Navigation Bar -->
+        <nav style="display: flex; justify-content: space-between; align-items: center; padding: 10px 30px; border-bottom: 1px solid #ddd; font-family: Arial, sans-serif;">
+            <div style="font-weight: bold; font-size: 18px;">Pikmin Bloom Helper</div>
+            <div style="display: flex; gap: 20px; color: #555;">
+                <a href="{{ url_for('index') }}" style="text-decoration: none; color: inherit;">Home</a>
+                <a href="{{ url_for('timers_page') }}" style="text-decoration: none; color: inherit;">Timers</a>
+                <a href="#" style="text-decoration: none; color: inherit;">Map</a>
+                <a href="{{ url_for('tracker') }}" style="text-decoration: none; color: inherit;">Decor</a>
+                <a href="#" style="text-decoration: none; color: inherit;">Friends</a>
+                <a href="{{ url_for('calculators_page') }}" style="text-decoration: none; color: inherit;">Calculators</a>
+                <a href="#" style="text-decoration: none; color: inherit;">Chat</a>
             </div>
-        </div>
+            <div>
+                <a href="{{ url_for('account') }}" style="text-decoration: none; font-size: 20px;">👤</a>
+            </div>
+        </nav>
 
         <!-- Flash Messages -->
         {% with messages = get_flashed_messages() %}

@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Pikmin Bloom Helper - Calculators</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 0; background: #fff; text-align: center; }
+        .calc-section { margin: 30px auto; width: 850px; }
+        .calc-section h3 { margin-bottom: 10px; font-weight: normal; color: #333; }
+        .calc-card {
+            background: #d9d9d9;
+            border-radius: 40px;
+            padding: 25px 35px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .select-box, .input-box {
+            background: #fff;
+            border: 1px solid #ccc;
+            padding: 10px 14px;
+            border-radius: 20px;
+            font-size: 13px;
+            outline: none;
+        }
+        .equals { font-size: 28px; font-weight: bold; color: #000; }
+        .result-pill {
+            background: #fff;
+            border: 1px solid #ccc;
+            border-radius: 20px;
+            padding: 8px 15px;
+            font-size: 15px;
+            min-width: 45px;
+        }
+        .calc-btn { background: #76c75c; border: none; padding: 10px 14px; border-radius: 15px; cursor: pointer; font-weight: bold; }
+        .timer-btn { background: #3498db; color: white; border: none; padding: 8px 12px; border-radius: 15px; cursor: pointer; font-size: 13px; font-weight: bold; text-decoration: none; display: inline-block; margin-top: 10px; }
+        .timer-btn:hover { background: #2980b9; }
+    </style>
+</head>
+<body>
+
+    <nav style="display: flex; justify-content: space-between; align-items: center; padding: 10px 30px; border-bottom: 1px solid #ddd; font-family: Arial, sans-serif;">
+        <div style="font-weight: bold; font-size: 18px;">Pikmin Bloom Helper</div>
+        <div style="display: flex; gap: 20px; color: #555;">
+            <a href="{{ url_for('index') }}" style="text-decoration: none; color: inherit;">Home</a>
+            <a href="{{ url_for('timers_page') }}" style="text-decoration: none; color: inherit;">Timers</a>
+            <a href="#" style="text-decoration: none; color: inherit;">Map</a>
+            <a href="{{ url_for('tracker') }}" style="text-decoration: none; color: inherit;">Decor</a>
+            <a href="#" style="text-decoration: none; color: inherit;">Friends</a>
+            <a href="{{ url_for('calculators_page') }}" style="text-decoration: none; color: inherit;">Calculators</a>
+            <a href="#" style="text-decoration: none; color: inherit;">Chat</a>
+        </div>
+        <div>
+            <a href="{{ url_for('account') }}" style="text-decoration: none; font-size: 20px;">👤</a>
+        </div>
+    </nav>
+
+    <!-- Mushroom Calculator -->
+    <div class="calc-section">
+        <h3>Mushroom Calculator</h3>
+        <form method="POST" class="calc-card">
+            <input type="hidden" name="calc_mushroom" value="1">
+            
+            <select name="mushroom_type" class="select-box">
+                {% for t in types %}
+                <option value="{{ t }}" {% if t == selected_type %}selected{% endif %}>{{ t }} Mushroom</option>
+                {% endfor %}
+            </select>
+            
+            <select name="mushroom_size" class="select-box">
+                {% for s in sizes %}
+                <option value="{{ s }}" {% if s == selected_size %}selected{% endif %}>{{ s }}</option>
+                {% endfor %}
+            </select>
+            
+            <div style="font-size: 13px;">
+                Strength: <input type="number" name="squad_strength" class="input-box" value="{{ squad_strength }}" placeholder="Power" style="width: 90px;" required>
+            </div>
+            
+            <button type="submit" class="calc-btn">Calc</button>
+            
+            <div class="equals">=</div>
+            
+            <div>
+                <div style="font-size: 11px; margin-bottom: 2px;">Score:</div>
+                <div class="result-pill">{{ mushroom_result if mushroom_result is not none else '0' }}</div>
+            </div>
+            
+            <div>
+                <div style="font-size: 11px; margin-bottom: 2px;">Stars</div>
+                <div style="font-size: 18px; color: #333;">{{ star_rating }}</div>
+            </div>
+        </form>
+
+        {% if health_display is not none %}
+        <div style="margin-top: 12px; display: flex; justify-content: space-between; align-items: center; padding: 0 20px;">
+            <p style="font-size: 13px; color: #555; margin: 0;">HP: <strong>{{ health_display }}</strong> | Exact Battle Time: <strong>{{ duration_str }}</strong></p>
+            
+            <form action="{{ url_for('quick_timer_from_calc') }}" method="POST" style="margin: 0;">
+                <input type="hidden" name="mushroom_type" value="{{ selected_type }}">
+                <input type="hidden" name="mushroom_size" value="{{ selected_size }}">
+                <input type="hidden" name="minutes" value="{{ estimated_duration_minutes }}">
+                <button type="submit" class="timer-btn">⏱️ Set Timer ({{ estimated_duration_minutes }}m)</button>
+            </form>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Flower Calculator -->
+    <div class="calc-section">
+        <h3>Flower Calculator</h3>
+        <div class="calc-card" style="justify-content: space-around;">
+            <div>
+                <input type="number" id="flowersInput" class="input-box" placeholder="Enter Number" oninput="convertPetals()" style="width: 130px;">
+                <span style="font-size: 16px; margin-left: 8px; font-weight: bold;">Flowers</span>
+            </div>
+            
+            <div class="equals">=</div>
+            
+            <div>
+                <span id="petalsOutput" class="result-pill">0</span>
+                <span style="font-size: 16px; margin-left: 8px; font-weight: bold;">Petals</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function convertPetals() {
+            let flowers = document.getElementById('flowersInput').value;
+            let petals = flowers ? Math.floor(flowers / 20) : 0;
+            document.getElementById('petalsOutput').innerText = petals;
+        }
+    </script>
+</body>
+</html>

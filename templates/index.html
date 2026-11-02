@@ -15,6 +15,21 @@
     </style>
 </head>
 <body>
+    <nav style="display: flex; justify-content: space-between; align-items: center; padding: 10px 30px; border-bottom: 1px solid #ddd; font-family: Arial, sans-serif;">
+        <div style="font-weight: bold; font-size: 18px;">Pikmin Bloom Helper</div>
+        <div style="display: flex; gap: 20px; color: #555;">
+            <a href="{{ url_for('index') }}" style="text-decoration: none; color: inherit;">Home</a>
+            <a href="{{ url_for('timers_page') }}" style="text-decoration: none; color: inherit;">Timers</a>
+            <a href="#" style="text-decoration: none; color: inherit;">Map</a>
+            <a href="{{ url_for('tracker') }}" style="text-decoration: none; color: inherit;">Decor</a>
+            <a href="#" style="text-decoration: none; color: inherit;">Friends</a>
+            <a href="{{ url_for('calculators_page') }}" style="text-decoration: none; color: inherit;">Calculators</a>
+            <a href="#" style="text-decoration: none; color: inherit;">Chat</a>
+        </div>
+        <div>
+            <a href="{{ url_for('account') }}" style="text-decoration: none; font-size: 20px;">👤</a>
+        </div>
+    </nav>
     <div class="container">
         <h1>Welcome to Pikmin Bloom Helper! 🌸🌱</h1>
         <p>Your ultimate companion for tracking and optimizing your Pikmin Bloom journey.</p>
@@ -26,6 +41,8 @@
             <a href="{{ url_for('account') }}" class="btn">Go to My Account</a>
             <a href="{{ url_for('logout') }}" class="btn" style="background-color: #e74c3c;">Log Out</a>
             <a href="{{ url_for('tracker') }}" class="btn" style="background-color: #0c71cf;">Tracker</a>
+            <a href="{{ url_for('timers_page') }}" style="background: #3498db; color: white; padding: 8px 15px; text-decoration: none; border-radius: 4px;">Timers</a>
+            <a href="{{ url_for('calculators_page') }}" style="background: #3498db; color: white; padding: 8px 15px; text-decoration: none; border-radius: 4px;">Calculators</a>
         {% else %}
             <p>Please log in or register to access your account features.</p>
             <a href="{{ url_for('login') }}" class="btn">Log In</a>

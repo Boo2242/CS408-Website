@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Pikmin Bloom Helper - Timers</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 0; background: #fff; }
+        .container { padding: 40px; display: flex; flex-wrap: wrap; gap: 20px; }
+        .timer-card {
+            background: #d9d9d9;
+            border-radius: 40px;
+            padding: 15px 25px;
+            display: flex;
+            align-items: center;
+            width: 340px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .timer-icon {
+            background: #fff;
+            border-radius: 50%;
+            width: 70px;
+            height: 70px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 30px;
+            margin-right: 20px;
+            border: 2px solid #ccc;
+        }
+        .timer-info h4 { margin: 0 0 5px 0; font-size: 16px; color: #333; }
+        .timer-info p { margin: 0; font-size: 14px; color: #555; }
+        .new-timer-btn {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            background: #76c75c;
+            color: #000;
+            padding: 12px 25px;
+            border-radius: 30px;
+            font-weight: bold;
+            border: none;
+            cursor: pointer;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.15);
+            font-size: 16px;
+        }
+        #modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.4); justify-content: center; align-items: center; }
+        .modal-content { background: #fff; padding: 30px; border-radius: 10px; width: 320px; text-align: left; }
+        select, input, button.submit-btn { width: 100%; padding: 8px; margin: 8px 0; box-sizing: border-box; border-radius: 5px; border: 1px solid #ccc; }
+    </style>
+</head>
+<body>
+
+    <nav style="display: flex; justify-content: space-between; align-items: center; padding: 10px 30px; border-bottom: 1px solid #ddd; font-family: Arial, sans-serif;">
+        <div style="font-weight: bold; font-size: 18px;">Pikmin Bloom Helper</div>
+        <div style="display: flex; gap: 20px; color: #555;">
+            <a href="{{ url_for('index') }}" style="text-decoration: none; color: inherit;">Home</a>
+            <a href="{{ url_for('timers_page') }}" style="text-decoration: none; color: inherit;">Timers</a>
+            <a href="#" style="text-decoration: none; color: inherit;">Map</a>
+            <a href="{{ url_for('tracker') }}" style="text-decoration: none; color: inherit;">Decor</a>
+            <a href="#" style="text-decoration: none; color: inherit;">Friends</a>
+            <a href="{{ url_for('calculators_page') }}" style="text-decoration: none; color: inherit;">Calculators</a>
+            <a href="#" style="text-decoration: none; color: inherit;">Chat</a>
+        </div>
+        <div>
+            <a href="{{ url_for('account') }}" style="text-decoration: none; font-size: 20px;">👤</a>
+        </div>
+    </nav>
+
+    <div class="container">
+        {% for exp in expeditions %}
+        <div class="timer-card">
+            <div class="timer-icon" style="overflow: hidden; padding: 0;">
+                {% if 'Fruit' in exp.title %}
+                    <img src="{{ url_for('static', filename='images/apple.png') }}" alt="Fruit" style="width: 50%; height: 50%; object-fit: cover;">
+                {% elif 'Seedling' in exp.title %}
+                    <img src="{{ url_for('static', filename='images/pikmin/gold_seedling.png') }}" alt="Seedling" style="width: 50%; height: 50%; object-fit: cover;">
+                {% elif 'Red' in exp.title %}
+                    <img src="{{ url_for('static', filename='images/red_mushroom.png') }}" alt="Red Mushroom" style="width: 50%; height: 50%; object-fit: cover;">
+                {% elif 'Purple' in exp.title %}
+                    <img src="{{ url_for('static', filename='images/purple_mushroom.png') }}" alt="Purple Mushroom" style="width: 50%; height: 50%; object-fit: cover;">
+                {% elif 'White' in exp.title %}
+                    <img src="{{ url_for('static', filename='images/white_mushroom.png') }}" alt="White Mushroom" style="width: 50%; height: 50%; object-fit: cover;">
+                {% elif 'Yellow' in exp.title %}
+                    <img src="{{ url_for('static', filename='images/yellow_mushroom.png') }}" alt="Yellow Mushroom" style="width: 50%; height: 50%; object-fit: cover;">
+                {% elif 'Blue' in exp.title %}
+                    <img src="{{ url_for('static', filename='images/blue_mushroom.png') }}" alt="Blue Mushroom" style="width: 50%; height: 50%; object-fit: cover;">
+                {% elif 'Rock' in exp.title %}
+                    <img src="{{ url_for('static', filename='images/grey_mushroom.png') }}" alt="Grey Mushroom" style="width: 50%; height: 50%; object-fit: cover;">
+                {% elif 'Pink' in exp.title %}
+                    <img src="{{ url_for('static', filename='images/pink_mushroom.png') }}" alt="Pink Mushroom" style="width: 50%; height: 50%; object-fit: cover;">
+                {% elif 'Ice' in exp.title %}
+                    <img src="{{ url_for('static', filename='images/ice_mushroom.png') }}" alt="Ice Mushroom" style="width: 50%; height: 50%; object-fit: cover;">
+                {% else %}
+                    <img src="{{ url_for('static', filename='images/red_mushroom.png') }}" alt="Mushroom" style="width: 50%; height: 50%; object-fit: cover;">
+                {% endif %}
+            </div>
+            <div class="timer-info">
+                <h4>{{ exp.title }}</h4>
+                <p class="timer" data-id="{{ exp.id }}" data-endtime="{{ exp.end_time.strftime('%Y-%m-%d %H:%M:%S') }}">Loading...</p>
+                <form action="{{ url_for('delete_expedition', exp_id=exp.id) }}" method="POST" style="margin-top: 5px;">
+                    <button type="submit" onclick="stopJingle()" style="background:none; border:none; color:red; cursor:pointer; font-size:12px; padding:0;">[Dismiss / Stop Alarm]</button>
+                </form>
+            </div>
+        </div>
+        {% else %}
+        <p style="color: #777; margin: 20px;">No active timers running. Click "+ New Timer" below!</p>
+        {% endfor %}
+    </div>
+
+    <button class="new-timer-btn" onclick="openModal()">+ New Timer</button>
+
+    <div id="modal">
+        <div class="modal-content">
+            <h3>Add Timer / Expedition</h3>
+            <form action="{{ url_for('add_expedition') }}" method="POST">
+                <label>Select Item:</label>
+                <select name="title">
+                    <optgroup label="Mushrooms">
+                        <option value="Small Red Mushroom">Small Red Mushroom</option>
+                        <option value="Normal Red Mushroom">Normal Red Mushroom</option>
+                        <option value="Large Red Mushroom">Large Red Mushroom</option>
+                        <option value="Giant Red Mushroom">Giant Red Mushroom</option>
+
+                        <option value="Small Yellow Mushroom">Small Yellow Mushroom</option>
+                        <option value="Normal Yellow Mushroom">Normal Yellow Mushroom</option>
+                        <option value="Large Yellow Mushroom">Large Yellow Mushroom</option>
+                        <option value="Giant Yellow Mushroom">Giant Yellow Mushroom</option>
+
+                        <option value="Small Blue Mushroom">Small Blue Mushroom</option>
+                        <option value="Normal Blue Mushroom">Normal Blue Mushroom</option>
+                        <option value="Large Blue Mushroom">Large Blue Mushroom</option>
+                        <option value="Giant Blue Mushroom">Giant Blue Mushroom</option>    
+                        
+                        <option value="Small Purple Mushroom">Small Purple Mushroom</option>
+                        <option value="Normal Purple Mushroom">Normal Purple Mushroom</option>
+                        <option value="Large Purple Mushroom">Large Purple Mushroom</option>
+                        <option value="Giant Purple Mushroom">Giant Purple Mushroom</option>
+
+                        <option value="Small White Mushroom">Small White Mushroom</option>
+                        <option value="Normal White Mushroom">Normal White Mushroom</option>
+                        <option value="Large White Mushroom">Large White Mushroom</option>
+                        <option value="Giant White Mushroom">Giant White Mushroom</option>
+
+                        <option value="Small Rock Mushroom">Small Grey Mushroom</option>
+                        <option value="Normal Rock Mushroom">Normal Grey Mushroom</option>
+                        <option value="Large Rock Mushroom">Large Grey Mushroom</option>
+                        <option value="Giant Rock Mushroom">Giant Grey Mushroom</option>
+
+                        <option value="Small Pink Mushroom">Small Pink Mushroom</option>
+                        <option value="Normal Pink Mushroom">Normal Pink Mushroom</option>
+                        <option value="Large Pink Mushroom">Large Pink Mushroom</option>
+                        <option value="Giant Pink Mushroom">Giant Pink Mushroom</option>
+
+                        <option value="Small Ice Mushroom">Small Ice Mushroom</option>
+                        <option value="Normal Ice Mushroom">Normal Ice Mushroom</option>
+                        <option value="Large Ice Mushroom">Large Ice Mushroom</option>
+                        <option value="Giant Ice Mushroom">Giant Ice Mushroom</option>
+
+                    </optgroup>
+                    <optgroup label="Other Activities">
+                        <option value="Fruit Expedition">Fruit Expedition</option>
+                        <option value="Seedling Expedition">Seedling Expedition</option>
+                    </optgroup>
+                </select>
+                <label>Duration (Minutes):</label>
+                <input type="number" name="minutes" value="15" required min="1">
+                <button type="submit" class="submit-btn" style="background:#76c75c; font-weight:bold; cursor:pointer;">Start Timer</button>
+                <button type="button" onclick="closeModal()" style="background:#ccc; cursor:pointer;">Cancel</button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        if (Notification.permission !== "granted") {
+            Notification.requestPermission();
+        }
+
+        let jingleInterval = null;
+
+        // Repeating celebratory jingle using Web Audio API
+        function playRepeatingJingle() {
+            if (jingleInterval) return; // Already playing
+            
+            const playTone = () => {
+                try {
+                    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                    const notes = [523.25, 659.25, 783.99, 1046.50]; // C5, E5, G5, C6 arpeggio
+                    notes.forEach((freq, index) => {
+                        setTimeout(() => {
+                            if (!jingleInterval) return;
+                            const osc = audioCtx.createOscillator();
+                            const gain = audioCtx.createGain();
+                            osc.type = 'triangle';
+                            osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+                            gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+                            gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.3);
+                            osc.connect(gain);
+                            gain.connect(audioCtx.destination);
+                            osc.start();
+                            osc.stop(audioCtx.currentTime + 0.3);
+                        }, index * 150);
+                    });
+                } catch(e) { console.log(e); }
+            };
+
+            playTone();
+            jingleInterval = setInterval(playTone, 1500); // Repeat every 1.5 seconds
+        }
+
+        function stopJingle() {
+            if (jingleInterval) {
+                clearInterval(jingleInterval);
+                jingleInterval = null;
+            }
+        }
+
+        function openModal() { document.getElementById('modal').style.display = 'flex'; }
+        function closeModal() { document.getElementById('modal').style.display = 'none'; }
+
+        const completedTimers = new Set();
+
+        function updateTimers() {
+            document.querySelectorAll('.timer').forEach(el => {
+                const id = el.getAttribute('data-id');
+                const endTime = new Date(el.getAttribute('data-endtime') + ' UTC').getTime();
+                const now = new Date().getTime();
+                const distance = endTime - now;
+                
+                if (distance < 0) {
+                    el.innerText = "COMPLETED!";
+                    if (!completedTimers.has(id)) {
+                        completedTimers.add(id);
+                        playRepeatingJingle();
+                        if (Notification.permission === "granted") {
+                            new Notification("Pikmin Timer Completed!", {
+                                body: "Your expedition or mushroom battle has finished! Click Dismiss to stop the alarm."
+                            });
+                        }
+                    }
+                } else {
+                    const hours = Math.floor(distance / (1000 * 60 * 60));
+                    const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
+                    const seconds = Math.floor((distance % (1000 * 60)) / 1000);
+                    
+                    if (hours > 0) {
+                        el.innerText = `${hours} hr ${minutes} min ${seconds} sec`;
+                    } else {
+                        el.innerText = `${minutes} min ${seconds} sec`;
+                    }
+                }
+            });
+        }
+        setInterval(updateTimers, 1000);
+    </script>
+</body>
+</html>

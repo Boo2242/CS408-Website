@@ -7,6 +7,34 @@ from flask import render_template, redirect, url_for, request, flash
 from flask_login import login_user, login_required, logout_user
 import string
 from decor_data import WIKI_DECOR_URLS, PIKMIN_POOLS
+from datetime import datetime, timedelta
+from sqlalchemy.exc import IntegrityError
+import math
+
+SCALE_MAP = {
+    ('Regular', 'Small'): 0.03,
+    ('Regular', 'Normal'): 0.23,
+    ('Regular', 'Large'): 1.00,
+    ('Regular', 'Giant'): 1.20,
+    ('Special', 'Normal'): 0.31,
+    ('Special', 'Large'): 1.10
+}
+
+TYPE_MAP = {
+    'Red': 4,
+    'Yellow': 3,
+    'Blue': 3,
+    'Purple': 6,
+    'White': 2,
+    'Pink': 2,
+    'Gray': 5,
+    'Ice Blue': 2,
+    'Fire': 92,
+    'Water': 91,
+    'Crystal': 93,
+    'Electric': 91,
+    'Poisonous': 90
+}
 
 database_url = os.getenv("DATABASE_URL")
 app = Flask(__name__)
@@ -107,6 +135,13 @@ class UserDecorProgress(db.Model):
     pikmin_type = db.Column(db.String(50), nullable=False)  # e.g., "Red", "Yellow", "Blue"
     status = db.Column(db.String(20), default='missing')     # missing, seedling, plucked, decor
 
+class Expedition(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    title = db.Column(db.String(100), nullable=False)
+    duration_minutes = db.Column(db.Integer, nullable=False)
+    end_time = db.Column(db.DateTime, nullable=False)
+
 with app.app_context():
     db.create_all()
     if not Category.query.first():
@@ -159,14 +194,23 @@ def register():
             db.func.lower(User.username) == username.lower()
         ).first()
         
-        # Hash password and create new user
-        hashed_password = generate_password_hash(password)
-        new_user = User(username=username, password_hash=hashed_password)
-        db.session.add(new_user)
-        db.session.commit()
+        if existing_user:
+            flash('That username is already taken. Please choose another.', 'danger')
+            return redirect(url_for('register'))
         
-        flash('Account created successfully! Please log in.')
-        return redirect(url_for('login'))
+        try:
+            hashed_password = generate_password_hash(password)
+            new_user = User(username=username, password_hash=hashed_password)
+            db.session.add(new_user)
+            db.session.commit()
+            
+            flash('Account created successfully! Please log in.', 'success')
+            return redirect(url_for('login'))
+            
+        except IntegrityError:
+            db.session.rollback() # Fallback safety net for race conditions
+            flash('That username is already taken. Please choose another.', 'danger')
+            return redirect(url_for('register'))
         
     return render_template('register.html')
 
@@ -341,6 +385,135 @@ def delete_category(cat_id):
     db.session.commit()
     flash(f'Category "{category.name}" has been deleted.', 'info')
     return redirect(url_for('tracker'))
+
+@app.route('/timers', methods=['GET', 'POST'])
+@login_required
+def timers_page():
+    active_expeditions = Expedition.query.filter_by(user_id=current_user.id).all()
+    return render_template('timers.html', expeditions=active_expeditions)
+
+@app.route('/calculators', methods=['GET', 'POST'])
+@login_required
+def calculators_page():
+    mushroom_result = None
+    star_rating = "☆☆☆"
+    health_display = None
+    duration_str = "0m 0s"
+    estimated_duration_minutes = 15
+    
+    selected_type = request.form.get('mushroom_type', 'Purple')
+    selected_size = request.form.get('mushroom_size', 'Small')
+    squad_strength = request.form.get('squad_strength', '')
+    
+    # Elemental / Special types that use the Special scale
+    special_types = ['Fire', 'Water', 'Crystal', 'Electric', 'Poisonous']
+    
+    if request.method == 'POST' and 'calc_mushroom' in request.form:
+        try:
+            strength_val = float(squad_strength)
+            
+            # Automatically detect if it's special or regular
+            if selected_type in special_types:
+                scale = SCALE_MAP.get(('Special', selected_size), 0.31)
+            else:
+                scale = SCALE_MAP.get(('Regular', selected_size), 0.23)
+                
+            t_val = TYPE_MAP.get(selected_type, 6)
+            health = 100 * math.floor(1080 * scale * (23 + t_val))
+            health_display = health
+            
+            t2 = health / 163.3
+            t3 = health / 80.9
+            t4 = health / 39.4
+            
+            score = int(strength_val * 1.15)
+            mushroom_result = score
+            
+            if score >= t4:
+                star_rating = "★★★★"
+            elif score >= t3:
+                star_rating = "★★★☆"
+            elif score >= t2:
+                star_rating = "★★☆☆"
+            else:
+                star_rating = "★☆☆☆"
+                
+            total_seconds = int((health / max(strength_val, 1)) * 100)
+            estimated_duration_minutes = max(1, round(total_seconds / 60))
+            
+            days = total_seconds // 86400
+            hours = (total_seconds % 86400) // 3600
+            minutes = (total_seconds % 3600) // 60
+            seconds = total_seconds % 60
+            
+            if days > 0:
+                duration_str = f"{days}d {hours}h {minutes}m {seconds}s"
+            elif hours > 0:
+                duration_str = f"{hours}h {minutes}m {seconds}s"
+            else:
+                duration_str = f"{minutes}m {seconds}s"
+                
+        except (ValueError, ZeroDivisionError):
+            mushroom_result = 0
+
+    return render_template('calculators.html', 
+                           mushroom_result=mushroom_result, 
+                           star_rating=star_rating, 
+                           health_display=health_display,
+                           duration_str=duration_str,
+                           estimated_duration_minutes=estimated_duration_minutes,
+                           types=TYPE_MAP.keys(),
+                           sizes=['Small', 'Normal', 'Large', 'Giant'],
+                           selected_type=selected_type,
+                           selected_size=selected_size,
+                           squad_strength=squad_strength)
+
+@app.route('/calculator/quick-timer', methods=['POST'])
+@login_required
+def quick_timer_from_calc():
+    m_type = request.form.get('mushroom_type')
+    m_size = request.form.get('mushroom_size')
+    minutes = int(request.form.get('minutes', 15))
+    
+    title = f"{m_size} {m_type} Mushroom"
+    end_time = datetime.utcnow() + timedelta(minutes=minutes)
+    
+    new_exp = Expedition(user_id=current_user.id, title=title, duration_minutes=minutes, end_time=end_time)
+    db.session.add(new_exp)
+    db.session.commit()
+    flash('Timer successfully created from calculation!', 'success')
+    return redirect(url_for('timers_page'))
+
+    return render_template('calculators.html', 
+                           mushroom_result=mushroom_result, 
+                           star_rating=star_rating, 
+                           health_display=health_display,
+                           types=TYPE_MAP.keys(),
+                           sizes=['Small', 'Normal', 'Large', 'Giant'])
+
+@app.route('/expedition/add', methods=['POST'])
+@login_required
+def add_expedition():
+    title = request.form.get('title', 'Mushroom')
+    category = request.form.get('category', 'Regular')
+    minutes = int(request.form.get('minutes', 15))
+    end_time = datetime.utcnow() + timedelta(minutes=minutes)
+    
+    # Store category/type info in title or separate field if needed
+    full_title = f"{category} - {title}"
+    new_exp = Expedition(user_id=current_user.id, title=full_title, duration_minutes=minutes, end_time=end_time)
+    db.session.add(new_exp)
+    db.session.commit()
+    return redirect(url_for('timers_page'))
+
+@app.route('/expedition/delete/<int:exp_id>', methods=['POST'])
+@login_required
+def delete_expedition(exp_id):
+    exp = Expedition.query.get_or_404(exp_id)
+    if exp.user_id == current_user.id:
+        db.session.delete(exp)
+        db.session.commit()
+    return redirect(url_for('timers_page'))
 
 # 5. Local run block 
 if __name__ == '__main__':

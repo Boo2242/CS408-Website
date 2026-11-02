@@ -14,12 +14,29 @@
     </style>
 </head>
 <body>
+    <nav style="display: flex; justify-content: space-between; align-items: center; padding: 10px 30px; border-bottom: 1px solid #ddd; font-family: Arial, sans-serif;">
+        <div style="font-weight: bold; font-size: 18px;">Pikmin Bloom Helper</div>
+        <div style="display: flex; gap: 20px; color: #555;">
+            <a href="{{ url_for('index') }}" style="text-decoration: none; color: inherit;">Home</a>
+            <a href="{{ url_for('timers_page') }}" style="text-decoration: none; color: inherit;">Timers</a>
+            <a href="#" style="text-decoration: none; color: inherit;">Map</a>
+            <a href="{{ url_for('tracker') }}" style="text-decoration: none; color: inherit;">Decor</a>
+            <a href="#" style="text-decoration: none; color: inherit;">Friends</a>
+            <a href="{{ url_for('calculators_page') }}" style="text-decoration: none; color: inherit;">Calculators</a>
+            <a href="#" style="text-decoration: none; color: inherit;">Chat</a>
+        </div>
+        <div>
+            <a href="{{ url_for('account') }}" style="text-decoration: none; font-size: 20px;">👤</a>
+        </div>
+    </nav>
     <div class="container">
         <h1>Welcome back, {{ username }}! 🌸🌱</h1>
         <p>Your Pikmin Bloom Helper dashboard is live and connected to the database.</p>
         <a href="{{ url_for('logout') }}" class="logout-btn">Log Out</a>
         <a href="{{ url_for('index') }}" class="btn">Go Home</a>
         <a href="{{ url_for('tracker') }}" class="btn" style="background-color: #0c71cf;">Tracker</a>
+        <a href="{{ url_for('timers_page') }}" style="background: #3498db; color: white; padding: 8px 15px; text-decoration: none; border-radius: 4px;">Timers</a>
+        <a href="{{ url_for('calculators_page') }}" style="background: #3498db; color: white; padding: 8px 15px; text-decoration: none; border-radius: 4px;">Calculators</a>
         <form action="{{ url_for('delete_account') }}" method="POST" onsubmit="return confirm('Are you sure you want to delete your account? This action cannot be undone.');" style="margin-top: 30px;">
             <button type="submit" style="background-color: #e74c3c; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">Delete Account</button>
         </form>
