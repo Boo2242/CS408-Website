@@ -10,6 +10,9 @@ from decor_data import WIKI_DECOR_URLS, PIKMIN_POOLS
 from datetime import datetime, timedelta
 from sqlalchemy.exc import IntegrityError
 import math
+from decor_mapping import DECOR_MAPPING
+import requests
+import time
 
 SCALE_MAP = {
     ('Regular', 'Small'): 0.03,
@@ -148,6 +151,40 @@ with app.app_context():
         for cat_name, pool in PIKMIN_POOLS.items():
             db.session.add(Category(name=cat_name, is_official=True, allowed_pikmin=pool))
         db.session.commit()
+
+class CachedPOI(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    osm_id = db.Column(db.BigInteger, unique=True, nullable=True) # Tracks unique OSM element ID
+    name = db.Column(db.String(150), nullable=False)
+    lat = db.Column(db.Float, nullable=False)
+    lon = db.Column(db.Float, nullable=False)
+    category = db.Column(db.String(50), nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+def get_decor_info(tags):
+    # Priority keys that dictate specific decor types (like cuisine or specific shop types)
+    priority_keys = ['cuisine', 'shop', 'amenity', 'leisure', 'tourism', 'natural', 'landuse', 'waterway', 'aeroway', 'railway', 'building', 'highway', 'bridge']
+    
+    # Check priority keys first
+    for key in priority_keys:
+        if key in tags:
+            val = tags[key].lower()
+            if (key, val) in DECOR_MAPPING:
+                mapping = DECOR_MAPPING[(key, val)]
+                return mapping['decor'], mapping['category']
+                
+    # Fallback to general iteration over all tags
+    for key, val in tags.items():
+        val_lower = val.lower()
+        if (key, val_lower) in DECOR_MAPPING:
+            mapping = DECOR_MAPPING[(key, val_lower)]
+            return mapping['decor'], mapping['category']
+        elif (key, '*') in DECOR_MAPPING:
+            mapping = DECOR_MAPPING[(key, '*')]
+            return mapping['decor'], mapping['category']
+            
+    # Ultimate fallback if no tags match the mapping
+    return "Roadside", "Default"
 
 
 @login_manager.user_loader
@@ -514,6 +551,114 @@ def delete_expedition(exp_id):
         db.session.delete(exp)
         db.session.commit()
     return redirect(url_for('timers_page'))
+
+@app.route('/map')
+@login_required
+def map_page():
+    lat = request.args.get('lat', 43.695, type=float) # Settlers Park / Eagle area default
+    lon = request.args.get('lon', -116.353, type=float)
+    zoom = request.args.get('zoom', 14, type=int)
+    
+    pois = CachedPOI.query.all()
+    poi_list = [{'name': p.name, 'lat': p.lat, 'lon': p.lon, 'category': p.category} for p in pois]
+    return render_template('map.html', pois=poi_list, current_lat=lat, current_lon=lon, current_zoom=zoom)
+
+@app.route('/api/fetch-overpass', methods=['POST'])
+@login_required
+def fetch_overpass():
+    lat = request.form.get('lat', 43.695, type=float)
+    lon = request.form.get('lon', -116.353, type=float)
+    zoom = request.form.get('zoom', 14, type=int)
+    
+    radius = 1600 
+    
+    overpass_url = "https://overpass.openstreetmap.fr/api/interpreter"
+    overpass_query = f"""
+    [out:json][timeout:25];
+    (
+      nwr["shop"](around:{radius},{lat},{lon});
+      nwr["amenity"](around:{radius},{lat},{lon});
+      nwr["leisure"](around:{radius},{lat},{lon});
+      nwr["tourism"](around:{radius},{lat},{lon});
+      nwr["natural"](around:{radius},{lat},{lon});
+      nwr["landuse"](around:{radius},{lat},{lon});
+      nwr["waterway"](around:{radius},{lat},{lon});
+      nwr["aeroway"](around:{radius},{lat},{lon});
+      nwr["railway"](around:{radius},{lat},{lon});
+      nwr["building"](around:{radius},{lat},{lon});
+      nwr["highway"](around:{radius},{lat},{lon});
+      nwr["bridge"](around:{radius},{lat},{lon});
+      nwr["cuisine"](around:{radius},{lat},{lon});
+      
+      relation["amenity"="university"](around:{radius},{lat},{lon});
+      relation["amenity"="college"](around:{radius},{lat},{lon});
+    );
+    
+    (._; >;);
+    out center;
+    """
+    
+    headers = {'User-Agent': 'PikminBloomCompanionApp/1.0'}
+    
+    try:
+        response = requests.post(overpass_url, data={'data': overpass_query}, headers=headers, timeout=25)
+        response.raise_for_status()
+        data = response.json()
+        elements = data.get('elements', [])
+        
+        count = 0
+        updated_count = 0
+        
+        for element in elements:
+            tags = element.get('tags', {})
+            # Fallback name if tag doesn't have 'name' but has 'official_name' or similar
+            name = tags.get('name') or tags.get('alt_name')
+            if not name:
+                continue
+                
+            osm_id = element.get('id')
+            lat_elem = element.get('lat') or (element.get('center') and element['center'].get('lat'))
+            lon_elem = element.get('lon') or (element.get('center') and element['center'].get('lon'))
+            
+            if not lat_elem or not lon_elem or not osm_id:
+                continue
+            
+            matched_decor, matched_cat = get_decor_info(tags)
+            
+            # If it's ExtraMile Arena or BSU, let's force-correct their categories if tags were ambiguous
+            if "ExtraMile Arena" in name:
+                matched_decor, matched_cat = "Ball Keychain", "Stadium"
+            elif "Boise State University" in name:
+                matched_decor, matched_cat = "College Crest Patch", "University"
+                
+            category_str = f"{matched_cat} ({matched_decor})"
+            
+            existing_poi = CachedPOI.query.filter_by(osm_id=osm_id).first()
+            if existing_poi:
+                existing_poi.name = name
+                existing_poi.lat = lat_elem
+                existing_poi.lon = lon_elem
+                existing_poi.category = category_str
+                existing_poi.updated_at = datetime.utcnow()
+                updated_count += 1
+            else:
+                new_poi = CachedPOI(
+                    osm_id=osm_id,
+                    name=name,
+                    lat=lat_elem,
+                    lon=lon_elem,
+                    category=category_str
+                )
+                db.session.add(new_poi)
+                count += 1
+                
+        db.session.commit()
+        flash(f'Synced! Added {count} new POIs and updated {updated_count} existing cached locations.', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error fetching Overpass data: {str(e)}', 'danger')
+        
+    return redirect(url_for('map_page', lat=lat, lon=lon, zoom=zoom))
 
 # 5. Local run block 
 if __name__ == '__main__':

@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Pikmin Bloom Helper - Detector Radar</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 0; background: #fff; }
+        .map-container { display: flex; height: calc(100vh - 50px); }
+        #map { flex: 1; height: 100%; }
+        .sidebar { width: 360px; background: #f9f9f9; padding: 20px; box-shadow: -2px 0 5px rgba(0,0,0,0.1); overflow-y: auto; }
+        .sync-btn { background: #3498db; color: #fff; border: none; padding: 10px 15px; border-radius: 20px; font-weight: bold; cursor: pointer; width: 100%; margin-bottom: 15px; }
+        .poi-item { background: #fff; padding: 10px 14px; border-radius: 10px; margin-bottom: 8px; border-left: 5px solid #76c75c; font-size: 13px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+        .roadside-banner { background: #fff3cd; color: #856404; padding: 12px; border-radius: 10px; font-size: 13px; text-align: center; font-weight: bold; border: 1px solid #ffeeba; }
+    </style>
+</head>
+<body>
+
+    <nav style="display: flex; justify-content: space-between; align-items: center; padding: 10px 30px; border-bottom: 1px solid #ddd; font-family: Arial, sans-serif;">
+        <div style="font-weight: bold; font-size: 18px;">Pikmin Bloom Helper</div>
+        <div style="display: flex; gap: 20px; color: #555;">
+            <a href="{{ url_for('index') }}" style="text-decoration: none; color: inherit;">Home</a>
+            <a href="{{ url_for('timers_page') }}" style="text-decoration: none; color: inherit;">Timers</a>
+            <a href="{{ url_for('map_page') }}" style="text-decoration: none; color: inherit;">Map</a>
+            <a href="{{ url_for('tracker') }}" style="text-decoration: none; color: inherit;">Decor</a>
+            <a href="#" style="text-decoration: none; color: inherit;">Friends</a>
+            <a href="{{ url_for('calculators_page') }}" style="text-decoration: none; color: inherit;">Calculators</a>
+            <a href="#" style="text-decoration: none; color: inherit;">Chat</a>
+        </div>
+        <div>
+            <a href="{{ url_for('account') }}" style="text-decoration: none; font-size: 20px;">👤</a>
+        </div>
+    </nav>
+
+    <div class="input-group mb-3">
+        <input type="text" id="map-search-input" class="form-control" placeholder="Search cached location (e.g. BSU, ExtraMile)...">
+        <button class="btn btn-outline-primary" type="button" id="search-jump-btn">Jump</button>
+    </div>
+
+    <div class="map-container">
+        <!-- Sidebar Controls & Radar Results -->
+        <div class="sidebar">
+            <h3>📡 Detector Radar</h3>
+            <p style="font-size: 13px; color: #555;">Click anywhere on the map to drop your 100m detector and scan for nearby Decor POIs!</p>
+            <p style="font-size: 13px; color: #555;">Some locations may be incorrect, shrines only apply if in Japan</p>
+            
+            <form id="syncForm" action="{{ url_for('fetch_overpass') }}" method="POST">
+                <input type="hidden" name="lat" id="formLat" value="{{ current_lat }}">
+                <input type="hidden" name="lon" id="formLon" value="{{ current_lon }}">
+                <input type="hidden" name="zoom" id="formZoom" value="{{ current_zoom }}">
+                <button type="submit" class="sync-btn">🔄 Sync Valley OpenStreetMap Data</button>
+            </form>
+
+            <div style="margin: 10px 0; font-size: 13px; color: #666; background: #eee; padding: 8px 12px; border-radius: 8px;">
+                📏 Detector Range: <strong>100 meters</strong> (Fixed)
+            </div>
+
+            <hr style="margin: 20px 0; border: 0; border-top: 1px solid #ddd;">
+
+            <div class="card mb-3 p-3 shadow-sm bg-light">
+                <h6 class="fw-bold text-dark mb-2">🌿 Available Decors in Zone</h6>
+                <div id="zone-summary-list" class="d-flex flex-wrap gap-1">
+                    <!-- Dynamically populated -->
+                </div>
+            </div>
+            
+            <h4>🎯 Scan Results (<span id="resultCount">0</span> found)</h4>
+            <div id="radarResults" style="max-height: 400px; overflow-y: auto;">
+                <p style="font-size: 13px; color: #777;">Click on the map to run a detector scan.</p>
+            </div>
+        </div>
+
+        <!-- Leaflet Map View -->
+        <div id="map"></div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <script>
+        // Safely pass Jinja variables into global JavaScript variables
+        const initialLat = Number("{{ current_lat }}") || 43.695;
+        const initialLon = Number("{{ current_lon }}") || -116.353;
+        const initialZoom = Number("{{ current_zoom }}") || 14;
+
+        const map = L.map('map').setView([initialLat, initialLon], initialZoom);
+
+        const DECOR_COLORS = {
+            "Restaurant": "#ff6b6b",        // Chef Hat
+            "Café": "#d4a373",              // Coffee Cup
+            "Sweetshop": "#ff8fab",         // Macaron / Donut
+            "Movie Theater": "#e056fd",     // Popcorn
+            "Pharmacy": "#00b894",          // Toothbrush
+            "Zoo": "#55efc4",               // Dandelion
+            "Forest": "#27ae60",            // Stag Beetle / Acorn
+            "Waterside": "#0984e3",         // Fishing Lure
+            "Post Office": "#fdcb6e",       // Stamp
+            "Art Gallery": "#e84393",       // Picture Frame
+            "Airport": "#74b9ff",           // Toy Airplane
+            "Station": "#6c5ce7",           // Paper Train
+            "Beach": "#ffeaa7",             // Shell
+            "Burger Place": "#fab1a0",      // Burger / Fries
+            "Mini-mart": "#ff7675",         // Bottle Cap
+            "Supermarket": "#55efc4",       // Mushroom / Banana
+            "Bakery": "#e17055",            // Baguette
+            "Hair Salon": "#fd79a8",        // Scissors
+            "Clothes Store": "#81ecec",     // Hair Tie
+            "Park": "#00b894",              // Clover
+            "Library": "#a29bfe",           // Tiny Book
+            "Sushi Restaurant": "#ff7675",  // Sushi
+            "Mountain": "#b2bec3",          // Mountain Pin
+            "Stadium": "#e17055",           // Ball Keychain
+            "Theme Park": "#fdcb6e",        // Theme Park Ticket
+            "Bus Stop": "#0984e3",          // Bus Papercraft
+            "Italian Restaurant": "#e17055",// Pizza
+            "University": "#a29bfe",        // College Crest Patch
+            "Default": "#b2bec3"            // Roadside
+        };
+
+        function getDecorColor(categoryName) {
+            for (const [key, color] of Object.entries(DECOR_COLORS)) {
+                if (categoryName.includes(key)) return color;
+            }
+            return "#b2bec3"; // Roadside grey
+        }
+
+        L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '&copy; OpenStreetMap contributors'
+        }).addTo(map);
+
+        // Update hidden form inputs whenever the map moves or zooms
+        map.on('moveend', function() {
+            const center = map.getCenter();
+            document.getElementById('formLat').value = center.lat;
+            document.getElementById('formLon').value = center.lng;
+            document.getElementById('formZoom').value = map.getZoom();
+        });
+
+        // Load all cached POIs from backend safely
+        const cachedPOIs = JSON.parse('{{ pois | tojson | safe }}');
+
+        // Render all POI markers on the map color-coded by decor type
+        cachedPOIs.forEach(poi => {
+            const color = getDecorColor(poi.category);
+            const marker = L.circleMarker([poi.lat, poi.lon], {
+                radius: 8,
+                fillColor: color,
+                color: "#fff",
+                weight: 2,
+                opacity: 1,
+                fillOpacity: 0.9
+            }).addTo(map);
+            
+            marker.bindPopup(`<b>${poi.name}</b><br>Category: ${poi.category}`);
+        });
+
+        let radarCenter = [initialLat, initialLon];
+        const radarRadius = 100; // Fixed 100-meter detector radius
+
+        // Add Radar Circle and Marker to Map
+        let radarMarker = L.marker(radarCenter, {draggable: true}).addTo(map)
+            .bindPopup("<b>Detector Center</b><br>Drag or click map to move.").openPopup();
+
+        let radarCircle = L.circle(radarCenter, {
+            color: '#76c75c',
+            fillColor: '#76c75c',
+            fillOpacity: 0.2,
+            radius: radarRadius
+        }).addTo(map);
+
+        function calculateDistance(lat1, lon1, lat2, lon2) {
+            const R = 6371000;
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLon = (lon2 - lon1) * Math.PI / 180;
+            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                      Math.sin(dLon/2) * Math.sin(dLon/2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            return R * c;
+        }
+
+        // Zone Decor Summary Function (with Roadside suppression)
+        function updateZoneSummary(foundPOIs) {
+            const summaryContainer = document.getElementById('zone-summary-list');
+            if (!summaryContainer) return;
+            summaryContainer.innerHTML = '';
+            
+            let uniqueCategories = new Set();
+            let hasNonRoadside = false;
+            
+            foundPOIs.forEach(p => {
+                let catName = p.category.split('(')[0].trim();
+                if (catName !== "Default" && catName !== "Roadside") {
+                    hasNonRoadside = true;
+                    uniqueCategories.add(catName);
+                } else {
+                    uniqueCategories.add("Roadside");
+                }
+            });
+            
+            if (hasNonRoadside) {
+                uniqueCategories.delete("Roadside");
+                uniqueCategories.delete("Default");
+            }
+            
+            if (uniqueCategories.size === 0) {
+                summaryContainer.innerHTML = `<span class="badge bg-secondary" style="background:#6c757d; color:white; padding:4px 8px; border-radius:4px; font-size:11px;">Only Roadside Nearby</span>`;
+                return;
+            }
+            
+            uniqueCategories.forEach(cat => {
+                let color = getDecorColor(cat);
+                let badge = document.createElement('span');
+                badge.className = 'badge border px-2 py-1';
+                badge.style.backgroundColor = color + '33';
+                badge.style.borderColor = color;
+                badge.style.color = '#333';
+                badge.style.fontWeight = 'bold';
+                badge.style.borderRadius = '4px';
+                badge.style.fontSize = '12px';
+                badge.innerHTML = `📍 ${cat}`;
+                summaryContainer.appendChild(badge);
+            });
+        }
+
+        let isScanning = false;
+
+        function runRadarScan(lat, lon) {
+            if (isScanning) return;
+            isScanning = true;
+
+            radarCenter = [lat, lon];
+            radarMarker.setLatLng(radarCenter);
+            radarCircle.setLatLng(radarCenter);
+
+            const resultsContainer = document.getElementById('radarResults');
+            
+            resultsContainer.innerHTML = `
+                <div style="text-align: center; padding: 20px; color: #555;">
+                    <div style="font-size: 24px; margin-bottom: 5px;">❓</div>
+                    <strong>Scanning 100m radius...</strong><br>
+                    <span style="font-size: 11px; color: #888;">Analyzing local map cells...</span>
+                </div>
+            `;
+            document.getElementById('resultCount').innerText = "...";
+
+            setTimeout(() => {
+                let foundPOIs = [];
+
+                cachedPOIs.forEach(poi => {
+                    const dist = calculateDistance(lat, lon, poi.lat, poi.lon);
+                    if (dist <= radarRadius) {
+                        foundPOIs.push({ ...poi, distance: Math.round(dist) });
+                    }
+                });
+
+                // Sort found POIs alphabetically by category name
+                foundPOIs.sort((a, b) => a.category.localeCompare(b.category));
+
+                document.getElementById('resultCount').innerText = foundPOIs.length;
+                resultsContainer.innerHTML = '';
+
+                // Update Zone Summary Box for this scan zone
+                updateZoneSummary(foundPOIs);
+
+                if (foundPOIs.length === 0) {
+                    resultsContainer.innerHTML = `
+                        <div class="roadside-banner">
+                            🌱 No specific Decor POIs in range!<br>
+                            <strong>Result: Roadside Seedling</strong> (Sticker / Coin)
+                        </div>
+                    `;
+                } else {
+                    foundPOIs.forEach(poi => {
+                        let decorColor = getDecorColor(poi.category);
+                        resultsContainer.innerHTML += `
+                            <div class="poi-item" style="border-left: 5px solid ${decorColor};">
+                                <strong>${poi.name}</strong><br>
+                                <span style="color: ${decorColor}; font-weight: bold;">🎁 ${poi.category}</span><br>
+                                <span style="color: #888; font-size: 11px;">📍 Distance: ${poi.distance}m away</span>
+                            </div>
+                        `;
+                    });
+                }
+                isScanning = false;
+            }, 1000); // 1-second crisp scan response
+        }
+
+        map.on('click', function(e) {
+            runRadarScan(e.latlng.lat, e.latlng.lng);
+        });
+
+        radarMarker.on('dragend', function(e) {
+            const pos = radarMarker.getLatLng();
+            runRadarScan(pos.lat, pos.lng);
+        });
+
+        // Search & Jump Event Listener
+        document.getElementById('search-jump-btn').addEventListener('click', function() {
+            const query = document.getElementById('map-search-input').value.toLowerCase();
+            const foundPoi = cachedPOIs.find(p => p.name.toLowerCase().includes(query));
+            
+            if (foundPoi) {
+                map.setView([foundPoi.lat, foundPoi.lon], 17);
+                runRadarScan(foundPoi.lat, foundPoi.lon);
+                L.popup()
+                    .setLatLng([foundPoi.lat, foundPoi.lon])
+                    .setContent(`<b>Jumped to:</b> ${foundPoi.name}`)
+                    .openOn(map);
+            } else {
+                alert('Location not found in current cached POIs. Try another name!');
+            }
+        });
+
+        // Initial scan on load
+        runRadarScan(radarCenter[0], radarCenter[1]);
+    </script>
+</body>
+</html>
