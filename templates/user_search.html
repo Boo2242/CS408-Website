@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Search Users - Pikmin Bloom Companion</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container" style="max-width: 600px; margin: 40px auto; font-family: sans-serif;">
+        <h2>Find Friends</h2>
+        <form method="GET" action="{{ url_for('search_users') }}" style="margin-bottom: 20px;">
+            <input type="text" name="q" value="{{ query }}" placeholder="Search by username..." style="padding: 8px; width: 70%;">
+            <button type="submit" style="padding: 8px 16px;">Search</button>
+        </form>
+
+        <p><a href="{{ url_for('account') }}">← Back to Account Dashboard</a></p>
+
+        <hr>
+
+        {% if query %}
+            <h3>Results for "{{ query }}"</h3>
+            {% if users %}
+                <ul style="list-style: none; padding: 0;">
+                    {% for u in users %}
+                        <li style="padding: 10px 0; border-bottom: 1px solid #ddd; display: flex; justify-content: space-between; align-items: center;">
+                            <span><strong>{{ u.username }}</strong></span>
+                            <div>
+                                {% if u.id in connected_ids %}
+                                    <span style="color: gray; font-size: 0.9em;">Connected / Pending</span>
+                                {% else %}
+                                    <form action="{{ url_for('send_friend_request', friend_id=u.id) }}" method="POST" style="display:inline;">
+                                        <button type="submit" style="padding: 4px 10px;">Add Friend</button>
+                                    </form>
+                                {% endif %}
+                            </div>
+                        </li>
+                    {% endfor %}
+                </ul>
+            {% else %}
+                <p>No users found matching "{{ query }}".</p>
+            {% endif %}
+        {% endif %}
+    </div>
+</body>
+</html>

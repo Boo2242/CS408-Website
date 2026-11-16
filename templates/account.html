@@ -2,18 +2,25 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Pikmin Bloom Helper</title>
+    <title>Account - Pikmin Bloom Helper</title>
     <style>
-        body { font-family: Arial, sans-serif; background-color: #f4f7f6; padding: 40px; margin: 0; }
-        .container { max-width: 600px; margin: auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
-        h1 { color: #2c3e50; }
-        .btn { display: inline-block; padding: 10px 20px; background-color: #27ae60; color: white; text-decoration: none; border-radius: 4px; margin-top: 20px; font-weight: bold; }
-        .blue-btn { display: inline-block; padding: 10px 20px; background-color: #0c71cf; color: white; text-decoration: none; border-radius: 4px; margin-top: 20px; font-weight: bold; }
-        .logout-btn { display: inline-block; padding: 10px 20px; background-color: #e74c3c; color: white; text-decoration: none; border-radius: 4px; margin-top: 20px; }
-        .logout-btn:hover { background-color: #c0392b; }
+        .flash-msg {
+            padding: 10px;
+            margin-bottom: 15px;
+            border-radius: 4px;
+        }
+        .flash-danger {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        .flash-success {
+            background: #d4edda;
+            color: #155724;
+        }
     </style>
 </head>
-<body>
+<body style="margin: 0; font-family: Arial, sans-serif; background: #f4f4f9;">
+
     <nav style="display: flex; justify-content: space-between; align-items: center; padding: 10px 30px; border-bottom: 1px solid #ddd; font-family: Arial, sans-serif;">
         <div style="font-weight: bold; font-size: 18px;">Pikmin Bloom Helper</div>
         <div style="display: flex; gap: 20px; color: #555;">
@@ -26,20 +33,167 @@
             <a href="#" style="text-decoration: none; color: inherit;">Chat</a>
         </div>
         <div>
-            <a href="{{ url_for('account') }}" style="text-decoration: none; font-size: 20px;">👤</a>
+            <a href="{{ url_for('account') }}" title="Account Settings" style="display: inline-flex; align-items: center; text-decoration: none;">
+                <img src="{{ get_avatar_url(current_user.profile_picture) }}" 
+                    alt="Profile" 
+                    style="width: 34px; height: 34px; border-radius: 50%; object-fit: cover; border: 2px solid #ddd; cursor: pointer;">
+            </a>
         </div>
     </nav>
-    <div class="container">
-        <h1>Welcome back, {{ username }}! 🌸🌱</h1>
-        <p>Your Pikmin Bloom Helper dashboard is live and connected to the database.</p>
-        <a href="{{ url_for('logout') }}" class="logout-btn">Log Out</a>
-        <a href="{{ url_for('index') }}" class="btn">Go Home</a>
-        <a href="{{ url_for('tracker') }}" class="btn" style="background-color: #0c71cf;">Tracker</a>
-        <a href="{{ url_for('timers_page') }}" style="background: #3498db; color: white; padding: 8px 15px; text-decoration: none; border-radius: 4px;">Timers</a>
-        <a href="{{ url_for('calculators_page') }}" style="background: #3498db; color: white; padding: 8px 15px; text-decoration: none; border-radius: 4px;">Calculators</a>
-        <form action="{{ url_for('delete_account') }}" method="POST" onsubmit="return confirm('Are you sure you want to delete your account? This action cannot be undone.');" style="margin-top: 30px;">
-            <button type="submit" style="background-color: #e74c3c; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">Delete Account</button>
+
+    <!-- Main Content Container -->
+    <div style="max-width: 800px; margin: 30px auto; padding: 0 20px;">
+
+        <!-- Flash Messages -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="flash-msg {{ 'flash-danger' if category == 'danger' else 'flash-success' }}">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <!-- Profile Header -->
+        <div style="display: flex; align-items: center; gap: 20px; background: #fff; padding: 20px; border-radius: 8px; border: 1px solid #ddd;">
+            <img src="{{ get_avatar_url(current_user.profile_picture) }}" alt="Avatar" style="width: 64px; height: 64px; border-radius: 50%; object-fit: cover; border: 2px solid #ccc;">
+            <div>
+                <h2 style="margin: 0 0 5px 0;">{{ current_user.username }}</h2>
+                <p style="color: #666; margin: 0;">{{ current_user.email }}</p>
+            </div>
+        </div>
+
+        <!-- Friend Search Section -->
+        <div style="margin-top: 25px; background: #fff; padding: 20px; border-radius: 8px; border: 1px solid #ddd;">
+            <h3>Find Players</h3>
+            <form action="{{ url_for('search_users') }}" method="GET" style="display: flex; gap: 10px;">
+                <input type="text" name="q" placeholder="Search by username..." required style="flex: 1; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+                <button type="submit" style="padding: 8px 16px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;">Search</button>
+            </form>
+        </div>
+
+        <!-- Pending Friend Requests -->
+        {% set incoming_requests = current_user.received_requests | selectattr('status', 'equalto', 'pending') | list %}
+        {% if incoming_requests %}
+        <div style="margin-top: 25px; background: #fff; padding: 20px; border-radius: 8px; border: 1px solid #ddd;">
+            <h3>Pending Friend Requests</h3>
+            <ul style="list-style: none; padding: 0; margin: 0;">
+                {% for req in incoming_requests %}
+                <li style="display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #eee;">
+                    <span><strong>{{ req.user.username }}</strong> wants to connect</span>
+                    <div style="display: flex; gap: 10px;">
+                        <form action="{{ url_for('respond_friend_request', request_id=req.id, action='accept') }}" method="POST" style="margin:0;">
+                            <button type="submit" style="background: #28a745; color: white; border: none; padding: 5px 12px; border-radius: 4px; cursor: pointer;">Accept</button>
+                        </form>
+                        <form action="{{ url_for('respond_friend_request', request_id=req.id, action='deny') }}" method="POST" style="margin:0;">
+                            <button type="submit" style="background: #dc3545; color: white; border: none; padding: 5px 12px; border-radius: 4px; cursor: pointer;">Deny</button>
+                        </form>
+                    </div>
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+
+       <!-- Friends List Section -->
+        <div style="margin-top: 25px; background: #fff; padding: 20px; border-radius: 8px; border: 1px solid #ddd;">
+            <h3>My Friends</h3>
+            {% set friendships = current_user.sent_requests | selectattr('status', 'equalto', 'accepted') | list + current_user.received_requests | selectattr('status', 'equalto', 'accepted') | list %}
+            
+            {% if not friendships %}
+                <p style="color: #777; margin: 0;">You haven't added any friends yet. Search for users above to connect!</p>
+            {% else %}
+                <ul style="list-style: none; padding: 0; margin: 0;">
+                    {% for f in friendships %}
+                        {% set friend_obj = f.friend if f.user_id == current_user.id else f.user %}
+                        {% set total, rare = get_user_decor_stats(friend_obj.id) if get_user_decor_stats else (0, 0) %}
+                        <li style="display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid #eee;">
+                            
+                            <!-- Flex container for Avatar + Details -->
+                            <div style="display: flex; align-items: center; gap: 12px;">
+                                <img src="{{ get_avatar_url(friend_obj.profile_picture) }}" 
+                                     alt="{{ friend_obj.username }}" 
+                                     style="width: 40px; height: 40px; border-radius: 50%; object-fit: cover; border: 1px solid #ccc;">
+                                <div>
+                                    <strong style="font-size: 16px;">{{ friend_obj.username }}</strong>
+                                    <div style="font-size: 13px; color: #666; margin-top: 4px;">
+                                        🌿 Total Decors: <strong>{{ total }}</strong> &nbsp;|&nbsp; ⭐ Rare Decors: <strong>{{ rare }}</strong>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {% if friend_obj.is_public %}
+                                <a href="{{ url_for('view_friend_tracker', friend_id=friend_obj.id) }}" style="text-decoration: none; background: #6c757d; color: white; padding: 6px 14px; border-radius: 4px; font-size: 14px;">View Collection</a>
+                            {% else %}
+                                <span style="background: #e9ecef; color: #6c757d; padding: 6px 14px; border-radius: 4px; font-size: 14px; cursor: not-allowed;">🔒 Private</span>
+                            {% endif %}
+                        </li>
+                    {% endfor %}
+                </ul>
+            {% endif %}
+        </div>
+
+    </div>
+    <div style="background: white; padding: 24px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); margin-top: 24px;">
+    <h3 style="margin-top: 0;">Account Settings</h3>
+    
+    <form method="POST" action="{{ url_for('update_account_settings') }}">
+        <!-- Avatar Picker -->
+        <div style="margin-bottom: 16px;">
+            <label style="display: block; font-weight: bold; margin-bottom: 8px;">Choose Profile Avatar:</label>
+            <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+                {% for avatar in available_avatars %}
+                <label style="cursor: pointer; text-align: center;">
+                    <input type="radio" name="profile_picture" value="{{ avatar }}" 
+                           {% if current_user.profile_picture == avatar %}checked{% endif %}
+                           style="display: block; margin: 0 auto 4px;">
+                    <img src="{{ url_for('static', filename='images/pikmin/' + avatar) }}" 
+                         alt="{{ avatar }}" 
+                         style="width: 48px; height: 48px; border-radius: 50%; border: 2px solid #ddd; object-fit: cover;">
+                </label>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Privacy Toggle -->
+        <div style="margin-bottom: 20px;">
+            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                <input type="checkbox" name="is_public" {% if current_user.is_public %}checked{% endif %}>
+                <span><strong>Public Profile</strong> — Allow friends and players to view your decor collection</span>
+            </label>
+        </div>
+        <div style="margin-top: 12px; margin-bottom: 16px;">
+            <label style="display: block; font-weight: bold; margin-bottom: 6px;">Or Use Custom Image URL:</label>
+            <input type="url" 
+                name="custom_avatar_url" 
+                value="{{ current_user.profile_picture if current_user.profile_picture and current_user.profile_picture.startswith(('http://', 'https://')) else '' }}"
+                placeholder="https://example.com/my-pikmin-avatar.png" 
+                style="width: 100%; max-width: 420px; padding: 8px; border: 1px solid #ccc; border-radius: 6px;">
+            <small style="display: block; color: #666; margin-top: 4px;">
+                Leave blank to use your selected preset Pikmin avatar above.
+            </small>
+        </div>
+
+        <button type="submit" style="background: #007bff; color: white; border: none; padding: 10px 18px; border-radius: 6px; cursor: pointer;">
+            Save Settings
+        </button>
+    </form>
+
+    <hr style="margin: 24px 0; border: none; border-top: 1px solid #eee;">
+
+    <!-- Session & Danger Zone -->
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+        <a href="{{ url_for('logout') }}" style="padding: 8px 16px; background: #6c757d; color: white; text-decoration: none; border-radius: 6px;">
+            Log Out
+        </a>
+
+        <form method="POST" action="{{ url_for('delete_account') }}" onsubmit="return confirm('Are you sure you want to permanently delete your account?');">
+            <button type="submit" style="background: #dc3545; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer;">
+                Delete Account
+            </button>
         </form>
     </div>
+</div>
 </body>
 </html>

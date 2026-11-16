@@ -13,6 +13,8 @@ import math
 from decor_mapping import DECOR_MAPPING
 import requests
 import time
+from flask import render_template, request, redirect, url_for, flash, jsonify
+from flask_login import login_required, current_user
 
 SCALE_MAP = {
     ('Regular', 'Small'): 0.03,
@@ -38,6 +40,17 @@ TYPE_MAP = {
     'Electric': 91,
     'Poisonous': 90
 }
+
+AVAILABLE_AVATARS = [
+    'red.png',
+    'yellow.png',
+    'blue.png',
+    'purple.png',
+    'white.png',
+    'rock.png',
+    'winged.png',
+    'ice.png'
+]
 
 database_url = os.getenv("DATABASE_URL")
 app = Flask(__name__)
@@ -117,10 +130,35 @@ def get_wiki_decor_name(p_type, status):
     # If it's a rare status, append %28Rare%29.png
     pass
 
-class User(UserMixin, db.Model):
+def get_avatar_url(profile_picture):
+    if profile_picture and profile_picture.startswith(('http://', 'https://')):
+        return profile_picture
+    filename = profile_picture or 'pikmin_blue.png'
+    return url_for('static', filename='images/pikmin/' + filename)
+
+app.jinja_env.globals['get_avatar_url'] = get_avatar_url
+
+class User(db.Model, UserMixin):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(150), unique=True, nullable=False)
-    password_hash = db.Column(db.String(256), nullable=False)
+    email = db.Column(db.String(150), unique=True, nullable=True)
+    password = db.Column(db.String(200), nullable=False)
+    profile_picture = db.Column(db.String(500), default='pikmin_blue.png') # Widened for URLs
+    is_public = db.Column(db.Boolean, default=True)
+
+    decor_progress = db.relationship('UserDecorProgress', backref='user_ref', lazy=True)
+
+# New Friendship Model
+class Friendship(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)     # Who sent/owns the connection
+    friend_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)   # The other user
+    status = db.Column(db.String(20), default='pending')                          # 'pending' or 'accepted'
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    # Relationships so we can easily query user and friend objects
+    user = db.relationship('User', foreign_keys=[user_id], backref='sent_requests')
+    friend = db.relationship('User', foreign_keys=[friend_id], backref='received_requests')
 
     
 class Category(db.Model):
@@ -237,7 +275,7 @@ def register():
         
         try:
             hashed_password = generate_password_hash(password)
-            new_user = User(username=username, password_hash=hashed_password)
+            new_user = User(username=username, password=hashed_password)
             db.session.add(new_user)
             db.session.commit()
             
@@ -261,7 +299,7 @@ def login():
             db.func.lower(User.username) == username.lower()
         ).first()
         
-        if user and check_password_hash(user.password_hash, password):
+        if user and check_password_hash(user.password, password):
             login_user(user)
             return redirect(url_for('account'))
         else:
@@ -282,7 +320,47 @@ def index():
 @app.route('/account')
 @login_required
 def account():
-  return render_template('account.html', username=current_user.username)
+    def calculate_stats(uid):
+        progress_items = UserDecorProgress.query.filter_by(user_id=uid).all()
+        total = sum(1 for p in progress_items if p.status in ['decor', 'rare'])
+        rare = sum(1 for p in progress_items if p.status == 'rare')
+        return total, rare
+
+    return render_template(
+        'account.html',
+        get_user_decor_stats=calculate_stats,
+        available_avatars=AVAILABLE_AVATARS
+    )
+
+@app.route('/account/update-avatar', methods=['POST'])
+@login_required
+def update_avatar():
+    avatar = request.form.get('avatar_picture')
+    if avatar in AVAILABLE_AVATARS:
+        current_user.profile_picture = avatar
+        db.session.commit()
+        flash('Profile picture updated successfully!', 'success')
+    return redirect(url_for('account'))
+
+@app.route('/account/update-settings', methods=['POST'])
+@login_required
+def update_account_settings():
+    custom_url = request.form.get('custom_avatar_url', '').strip()
+    preset_avatar = request.form.get('profile_picture')
+
+    if custom_url:
+        if custom_url.startswith(('http://', 'https://')):
+            current_user.profile_picture = custom_url
+        else:
+            flash('Custom image URL must start with http:// or https://', 'danger')
+            return redirect(url_for('account'))
+    elif preset_avatar in AVAILABLE_AVATARS:
+        current_user.profile_picture = preset_avatar
+
+    current_user.is_public = 'is_public' in request.form
+    db.session.commit()
+    flash('Account settings updated!', 'success')
+    return redirect(url_for('account'))
 
 @app.route('/delete-account', methods=['POST'])
 @login_required
@@ -659,6 +737,128 @@ def fetch_overpass():
         flash(f'Error fetching Overpass data: {str(e)}', 'danger')
         
     return redirect(url_for('map_page', lat=lat, lon=lon, zoom=zoom))
+
+
+# --- 1. User Search Route ---
+@app.route('/users/search', methods=['GET'])
+@login_required
+def search_users():
+    query = request.args.get('q', '').strip()
+    users = []
+    if query:
+        # Search users by username, excluding the current user
+        users = User.query.filter(
+            User.username.ilike(f'%{query}%'),
+            User.id != current_user.id
+        ).all()
+    
+    # Get IDs of users who are already friends or have pending requests with current user
+    existing_relations = Friendship.query.filter(
+        (Friendship.user_id == current_user.id) | (Friendship.friend_id == current_user.id)
+    ).all()
+    
+    connected_ids = set()
+    for rel in existing_relations:
+        connected_ids.add(rel.user_id if rel.friend_id == current_user.id else rel.friend_id)
+
+    return render_template('user_search.html', users=users, connected_ids=connected_ids, query=query)
+
+# --- 2. Send Friend Request ---
+@app.route('/friends/request/<int:friend_id>', methods=['POST'])
+@login_required
+def send_friend_request(friend_id):
+    if friend_id == current_user.id:
+        flash('You cannot add yourself as a friend!', 'danger')
+        return redirect(url_for('account'))
+    
+    # Check if relationship already exists
+    existing = Friendship.query.filter(
+        ((Friendship.user_id == current_user.id) & (Friendship.friend_id == friend_id)) |
+        ((Friendship.user_id == friend_id) & (Friendship.friend_id == current_user.id))
+    ).first()
+
+    if not existing:
+        new_request = Friendship(user_id=current_user.id, friend_id=friend_id, status='pending')
+        db.session.add(new_request)
+        db.session.commit()
+        flash('Friend request sent successfully!', 'success')
+    else:
+        flash('A request or friendship already exists with this user.', 'warning')
+        
+    return redirect(url_for('account'))
+
+# --- 3. Accept or Deny Friend Request ---
+@app.route('/friends/respond/<int:request_id>/<action>', methods=['POST'])
+@login_required
+def respond_friend_request(request_id, action):
+    req = Friendship.query.get_or_404(request_id)
+    
+    # Ensure current user is the recipient of the request
+    if req.friend_id != current_user.id:
+        flash('Unauthorized action.', 'danger')
+        return redirect(url_for('account'))
+
+    if action == 'accept':
+        req.status = 'accepted'
+        db.session.commit()
+        flash('Friend request accepted!', 'success')
+    elif action == 'deny':
+        db.session.delete(req)
+        db.session.commit()
+        flash('Friend request denied.', 'info')
+
+    return redirect(url_for('account'))
+
+# --- 4. Helper Function & Route for Friend's Read-Only Tracker ---
+def get_user_decor_stats(user_id):
+    # Adjust query based on your tracker/decor model structure
+    # Returns total decor count and rare decor count for a given user
+    from models import UserDecor  # or whatever table stores user collected decors
+    user_decors = UserDecor.query.filter_by(user_id=user_id).all()
+    
+    total_count = len(user_decors)
+    # Assuming rare decors have a specific flag or category
+    rare_count = sum(1 for d in user_decors if getattr(d, 'is_rare', False))
+    return total_count, rare_count
+
+@app.route('/friend/tracker/<int:friend_id>')
+@login_required
+def view_friend_tracker(friend_id):
+    friend = User.query.get_or_404(friend_id)
+
+    # 1. Check privacy setting first (always allow the user to view their own page)
+    if friend.id != current_user.id and not friend.is_public:
+        flash(f"{friend.username}'s collection is set to private.", 'warning')
+        return redirect(url_for('account'))
+
+    # 2. Verify they are actually friends
+    friendship = Friendship.query.filter(
+        ((Friendship.user_id == current_user.id) & (Friendship.friend_id == friend_id)) |
+        ((Friendship.user_id == friend_id) & (Friendship.friend_id == current_user.id)),
+        Friendship.status == 'accepted'
+    ).first()
+
+    if not friendship and friend_id != current_user.id:
+        flash('You must be friends with this user to view their collection.', 'danger')
+        return redirect(url_for('account'))
+
+    categories = Category.query.all()
+    processed_categories = []
+    for cat in categories:
+        groups = {}
+        for entry in cat.allowed_pikmin.split(','):
+            if not entry.strip():
+                continue
+            parts = entry.split(':')
+            p_type = parts[0].strip()
+            color = get_base_color(p_type)
+            subgroup = p_type[len(color)+1:] if "_" in p_type else "Standard"
+            if subgroup not in groups:
+                groups[subgroup] = []
+            groups[subgroup].append({'p_type': p_type})
+        processed_categories.append({'id': cat.id, 'name': cat.name, 'groups': groups})
+
+    return render_template('friend_tracker.html', friend=friend, categories=processed_categories)
 
 # 5. Local run block 
 if __name__ == '__main__':

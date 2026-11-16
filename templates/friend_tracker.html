@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ friend.username }}'s Collection - Pikmin Bloom Helper</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container" style="max-width: 900px; margin: 30px auto; font-family: sans-serif;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h2>{{ friend.username }}'s Decor Collection</h2>
+            <a href="{{ url_for('account') }}" style="text-decoration: none; padding: 6px 12px; background: #6c757d; color: white; border-radius: 4px;">← Back to Account</a>
+        </div>
+
+        <p style="color: #666; margin-bottom: 20px;">Read-only collection view for <strong>{{ friend.username }}</strong>.</p>
+
+        {% set friend_progress = {} %}
+        {% for p in friend.decor_progress %}
+            {% set _ = friend_progress.update({(p.category_id, p.pikmin_type): p.status}) %}
+        {% endfor %}
+
+        {% for cat in categories %}
+            <div style="background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); margin-bottom: 20px;">
+                <h3 style="margin-top: 0; border-bottom: 2px solid #eee; padding-bottom: 8px;">{{ cat.name }}</h3>
+                
+                <div style="display: flex; flex-wrap: wrap; gap: 16px;">
+                    {% for subgroup, items in cat.groups.items() %}
+                        <div style="background: #f9f9f9; padding: 12px; border-radius: 6px; min-width: 180px;">
+                            <h4 style="margin: 0 0 8px 0; font-size: 0.95em; color: #444;">{{ subgroup }}</h4>
+                            <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                                {% for item in items %}
+                                    {% set p_type = item.p_type %}
+                                    {% set status = friend_progress.get((cat.id, p_type), 'missing') %}
+                                    <div style="text-align: center;">
+                                        <img src="{{ get_pikmin_image_url(p_type, status, cat.id) }}" 
+                                             alt="{{ p_type }}" 
+                                             title="{{ p_type }} ({{ status }})"
+                                             style="width: 36px; height: 36px; object-fit: contain; border-radius: 4px; background: #fff; border: 1px solid #ddd; padding: 2px;">
+                                        <div style="font-size: 0.75em; color: #777; text-transform: capitalize;">{{ status }}</div>
+                                    </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+</body>
+</html>

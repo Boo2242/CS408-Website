@@ -28,7 +28,12 @@
             <a href="#" style="text-decoration: none; color: inherit;">Chat</a>
         </div>
         <div>
-            <a href="{{ url_for('account') }}" style="text-decoration: none; font-size: 20px;">👤</a>
+        <div>
+            <a href="{{ url_for('account') }}" title="Account Settings" style="display: inline-flex; align-items: center; text-decoration: none;">
+                <img src="{{ get_avatar_url(current_user.profile_picture) }}" 
+                    alt="Profile" 
+                    style="width: 34px; height: 34px; border-radius: 50%; object-fit: cover; border: 2px solid #ddd; cursor: pointer;">
+            </a>
         </div>
     </nav>
 
