@@ -1,4 +1,4 @@
-from flask import Flask, render_template, redirect, url_for, request, flash
+from flask import Flask, render_template, redirect, url_for, request, flash, current_app
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -365,12 +365,29 @@ def update_account_settings():
 @app.route('/delete-account', methods=['POST'])
 @login_required
 def delete_account():
-    user = current_user
+    user = db.session.get(User, current_user.id)
+    if not user:
+        logout_user()
+        return redirect(url_for('index'))
 
-    UserDecorProgress.query.filter_by(user_id=user.id).delete()
+    user_id = user.id
 
-    db.session.delete(user)
-    db.session.commit()
+    try:
+        for progress in UserDecorProgress.query.filter_by(user_id=user_id).all():
+            db.session.delete(progress)
+
+        for friendship in Friendship.query.filter(
+            (Friendship.user_id == user_id) | (Friendship.friend_id == user_id)
+        ).all():
+            db.session.delete(friendship)
+
+        db.session.delete(user)
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Delete account failed: {e}")
+        flash('Could not delete account due to a database error.', 'danger')
+        return redirect(url_for('account'))
 
     logout_user()
 
